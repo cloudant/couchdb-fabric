@@ -298,7 +298,9 @@ path_ends_with(Path, Suffix) ->
 
 fake_db(Opts) ->
     UserCtx = couch_util:get_value(user_ctx, Opts, #user_ctx{}),
-    #db{user_ctx = UserCtx}.
+    DbOpts = [{clustered, true}, {user_ctx, UserCtx}],
+    {ok, Db} = couch_db:open(<<"not_a_real_db">>, DbOpts),
+    Db.
 
 %% test function
 kv(Item, Count) ->
