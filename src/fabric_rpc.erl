@@ -64,7 +64,7 @@ changes(DbName, Options, StartVector, DbOptions) ->
         },
         try
             {ok, #cacc{seq=LastSeq, pending=Pending}} =
-                couch_db:changes_since(Db, StartSeq, Enum, Opts, Acc0),
+                couch_db:fold_changes(Db, StartSeq, Enum, Acc0, Opts),
             rexi:stream_last({complete, [
                 {seq, {LastSeq, uuid(Db)}},
                 {pending, Pending}
@@ -223,7 +223,7 @@ group_info(DbName, DDocId, DbOptions) ->
 reset_validation_funs(DbName) ->
     case get_or_create_db(DbName, []) of
     {ok, Db} ->
-        couch_db:reload_validation_functions(Db);
+        couch_db:reload_validation_funs(Db);
     _ ->
         ok
     end.
