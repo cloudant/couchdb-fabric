@@ -78,7 +78,7 @@ changes(DbName, Options, StartVector, DbOptions) ->
           epochs = get_epochs(Db)
         },
         try
-            {ok, #cacc{seq=LastSeq, pending=Pending, epochs=Epochs}} =
+            {ok, #cacc{seq=LastSeq, pending=Pending}} =
                 couch_db:fold_changes(Db, StartSeq, Enum, Acc0, Opts),
             rexi:stream_last({complete, [
                 {seq, {LastSeq, uuid(Db), owner_of(LastSeq, Epochs)}},
