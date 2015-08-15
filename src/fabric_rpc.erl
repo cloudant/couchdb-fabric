@@ -53,7 +53,7 @@ changes(DbName, Options, StartVector, DbOptions) ->
     {ok, Db} ->
         StartSeq = calculate_start_seq(Db, node(), StartVector),
         Enum = fun changes_enumerator/2,
-        Opts = [{dir,Dir}],
+        Opts = [doc_info, {dir,Dir}],
         Acc0 = #cacc{
           db = Db,
           seq = StartSeq,
