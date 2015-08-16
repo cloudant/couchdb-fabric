@@ -189,7 +189,7 @@ get_missing_revs(DbName, IdRevsList, Options) ->
     rexi:reply(case get_or_create_db(DbName, Options) of
     {ok, Db} ->
         Ids = [Id1 || {Id1, _Revs} <- IdRevsList],
-        {ok, FullDocInfos} = couch_db:open_docs(Db, Ids, [full_doc_info]),
+        FullDocInfos = couch_db:open_docs(Db, Ids, [full_doc_info]),
         {ok, lists:zipwith(fun({Id, Revs}, FullDocInfoResult) ->
             case FullDocInfoResult of
             #full_doc_info{rev_tree=RevisionTree} = FullInfo ->
