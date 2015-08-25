@@ -32,7 +32,7 @@
     seq,
     args,
     options,
-    target_seq,
+    pending,
     epochs
 }).
 
@@ -59,15 +59,15 @@ changes(DbName, Options, StartVector, DbOptions) ->
           seq = StartSeq,
           args = Args,
           options = Options,
-          target_seq = couch_db:get_update_seq(Db),
+          pending = couch_db:count_changes_since(Db, StartSeq),
           epochs = get_epochs(Db)
         },
         try
-            {ok, #cacc{seq=LastSeq}} =
+            {ok, #cacc{seq=LastSeq, pending=Pending}} =
                 couch_db:fold_changes(Db, StartSeq, Enum, Acc0, Opts),
             rexi:stream_last({complete, [
                 {seq, {LastSeq, uuid(Db)}},
-                {pending, Acc0#cacc.target_seq - LastSeq}
+                {pending, Pending}
             ]})
         after
             couch_db:close(Db)
@@ -301,7 +301,7 @@ reduce_cb(complete, Acc) ->
 
 
 changes_enumerator(#doc_info{id= <<"_local/", _/binary>>, high_seq=Seq}, Acc) ->
-    {ok, Acc#cacc{seq = Seq}};
+    {ok, Acc#cacc{seq = Seq, pending = Acc#cacc.pending-1}};
 changes_enumerator(DocInfo, Acc) ->
     #cacc{
         db = Db,
@@ -311,17 +311,17 @@ changes_enumerator(DocInfo, Acc) ->
             filter_fun = Filter,
             doc_options = DocOptions
         },
-        target_seq = TargetSeq,
+        pending = Pending,
         epochs = Epochs
     } = Acc,
     #doc_info{id=Id, high_seq=Seq, revs=[#rev_info{deleted=Del}|_]} = DocInfo,
     case [X || X <- couch_changes:filter(Db, DocInfo, Filter), X /= null] of
     [] ->
-        {ok, Acc#cacc{seq = Seq}};
+        {ok, Acc#cacc{seq = Seq, pending = Pending-1}};
     Results ->
         Opts = if Conflicts -> [conflicts | DocOptions]; true -> DocOptions end,
         ChangesRow = {change, [
-            {pending, TargetSeq - Seq},
+	    {pending, Pending-1},
             {seq, {Seq, uuid(Db), owner_of(Seq, Epochs)}},
             {id, Id},
             {changes, Results},
@@ -329,7 +329,7 @@ changes_enumerator(DocInfo, Acc) ->
             if IncludeDocs -> [doc_member(Db, DocInfo, Opts)]; true -> [] end
         ]},
         ok = rexi:stream2(ChangesRow),
-        {ok, Acc#cacc{seq = Seq}}
+        {ok, Acc#cacc{seq = Seq, pending = Pending-1}}
     end.
 
 doc_member(Shard, DocInfo, Opts) ->
