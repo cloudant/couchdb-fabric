@@ -19,9 +19,9 @@
 -export([create_db/2, delete_db/1, reset_validation_funs/1, set_security/3,
     set_revs_limit/3, create_shard_db_doc/2, delete_shard_db_doc/2]).
 -export([get_all_security/2, open_shard/2]).
-
 -export([get_db_info/2, get_doc_count/2, get_update_seq/2,
          changes/4, map_view/5, reduce_view/5, group_info/3]).
+-export([get_purge_seq/2, purge_docs/3, set_purged_docs_limit/3]).
 
 -include_lib("fabric/include/fabric.hrl").
 -include_lib("couch/include/couch_db.hrl").
@@ -183,6 +183,9 @@ get_all_security(DbName, Options) ->
 set_revs_limit(DbName, Limit, Options) ->
     with_db(DbName, Options, {couch_db, set_revs_limit, [Limit]}).
 
+set_purged_docs_limit(DbName, Limit, Options) ->
+    with_db(DbName, Options, {couch_db, set_purged_docs_limit, [Limit]}).
+
 open_doc(DbName, DocId, Options) ->
     with_db(DbName, Options, {couch_db, open_doc, [DocId, Options]}).
 
@@ -227,6 +230,12 @@ update_docs(DbName, Docs0, Options) ->
     end,
     Docs = make_att_readers(Docs0),
     with_db(DbName, Options, {couch_db, update_docs, [Docs, Options, X]}).
+
+get_purge_seq(DbName, DbOptions) ->
+    with_db(DbName, DbOptions, {couch_db, get_purge_seq, []}).
+
+purge_docs(DbName, IdsRevs, Options) ->
+    with_db(DbName, Options, {couch_db, purge_docs, [IdsRevs]}).
 
 %% @equiv group_info(DbName, DDocId, [])
 group_info(DbName, DDocId) ->
