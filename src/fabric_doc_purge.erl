@@ -22,7 +22,7 @@ go(_, [], _) ->
     {ok, []};
 go(DbName, AllIdsRevs, Opts) ->
     % tag each purge request with UUId
-    {AllUUIDs, AllUUIDsIdsRevs, LengthIds} = tag_docs(AllIdsRevs),
+    {AllUUIDs, AllUUIDsIdsRevs, DocCount} = tag_docs(AllIdsRevs),
 
     Options = lists:delete(all_or_nothing, Opts),
     % Counters -> [{Worker, UUIDs}]
@@ -40,7 +40,7 @@ go(DbName, AllIdsRevs, Opts) ->
     % PSeqsCs -> [{Shard, PurgeSeq}]
     % DocsDict -> UUID -> [{ok, PurgedRevs}]
     ResultsAcc = {[], dict:new()},
-    Acc = {length(Workers), LengthIds, list_to_integer(W), Counters, ResultsAcc},
+    Acc = {length(Workers), DocCount, list_to_integer(W), Counters, ResultsAcc},
     Timeout = fabric_util:request_timeout(),
     try rexi_utils:recv(Workers, #shard.ref, fun handle_message/3, Acc, infinity, Timeout) of
     {ok, {Health, PSeq, Results}} when Health =:= ok; Health =:= accepted ->
@@ -62,7 +62,7 @@ go(DbName, AllIdsRevs, Opts) ->
     end.
 
 handle_message({rexi_DOWN, _, {_,NodeRef},_}, _Worker, Acc0) ->
-    {_, LenDocs, W, Counters, {PSeqsCs, DocsDict0}} = Acc0,
+    {_, DocCount, W, Counters, {PSeqsCs, DocsDict0}} = Acc0,
     {FailCounters, NewCounters} = lists:partition(fun({#shard{node=N}, _}) ->
         N == NodeRef
     end, Counters),
@@ -72,14 +72,14 @@ handle_message({rexi_DOWN, _, {_,NodeRef},_}, _Worker, Acc0) ->
         append_update_replies(Docs, Replies, CDocsDict)
     end, DocsDict0, FailCounters),
     Results = {PSeqsCs, DocsDict},
-    skip_message({length(NewCounters), LenDocs, W, NewCounters, Results});
+    skip_message({length(NewCounters), DocCount, W, NewCounters, Results});
 handle_message({rexi_EXIT, _}, Worker, Acc0) ->
-    {WC, LenDocs , W, Counters, {PSeqsCs, DocsDict0}} = Acc0,
+    {WC, DocCount , W, Counters, {PSeqsCs, DocsDict0}} = Acc0,
     % fill DocsDict with error messages for relevant Docs
     {value, {_W, Docs}, NewCounters} = lists:keytake(Worker, 1, Counters),
     Replies = [{error, internal_server_error} || _D <- Docs],
     DocsDict = append_update_replies(Docs, Replies, DocsDict0),
-    skip_message({WC-1, LenDocs, W, NewCounters, {PSeqsCs, DocsDict}});
+    skip_message({WC-1, DocCount, W, NewCounters, {PSeqsCs, DocsDict}});
 handle_message({ok, {PSeq, Replies0}}, Worker, Acc0) ->
     {WCount, DocCount, W, Counters, {PSeqsCs0, DocsDict0}} = Acc0,
     {value, {_W, Docs}, NewCounters} = lists:keytake(Worker, 1, Counters),
@@ -105,12 +105,12 @@ handle_message({ok, {PSeq, Replies0}}, Worker, Acc0) ->
         {ok, {WCount - 1, DocCount, W, NewCounters, {PSeqsCs, DocsDict}}}
     end;
 handle_message({error, purged_docs_limit_exceeded}=Error, Worker, Acc0) ->
-    {WC, LenDocs , W, Counters, {PSeqsCs, DocsDict0}} = Acc0,
+    {WC, DocCount , W, Counters, {PSeqsCs, DocsDict0}} = Acc0,
     % fill DocsDict with error messages for relevant Docs
     {value, {_W, Docs}, NewCounters} = lists:keytake(Worker, 1, Counters),
     Replies = [Error || _D <- Docs],
     DocsDict = append_update_replies(Docs, Replies, DocsDict0),
-    skip_message({WC-1, LenDocs, W, NewCounters, {PSeqsCs, DocsDict}});
+    skip_message({WC-1, DocCount, W, NewCounters, {PSeqsCs, DocsDict}});
 handle_message({bad_request, Msg}, _, _) ->
     throw({bad_request, Msg}).
 
@@ -360,7 +360,7 @@ doc_purge_error_test() ->
         group_idrevs_by_shard_hack(<<"foo">>, Shards, UUIDsIDdsRevs)),
     DocsDict = dict:new(),
 
-    % *** test rexi_exit on 3 nodes
+    % *** test rexi_exit on all 3 nodes
     Acc0 = {length(Shards), length(UUIDsIDdsRevs), list_to_integer("2"),
         Counters, {[], DocsDict}},
     {ok, {WaitingCount1,_,_,_,_} = Acc1} =
