@@ -226,14 +226,14 @@ update_docs(DbName, Docs0, Options) ->
         true -> replicated_changes;
         _ -> interactive_edit
     end,
-    DocsByNode = couch_util:get_value(read_repairs, Options),
+    DocsByNode = couch_util:get_value(read_repair, Options),
     case {X, DocsByNode} of
         {_, undefined} ->
             Docs = make_att_readers(Docs0),
             with_db(DbName, Options,
                 {couch_db, update_docs, [Docs, Options, X]});
         {replicated_changes, _} ->
-            update_docs_read_repairs(DbName, DocsByNode, Options)
+            update_docs_read_repair(DbName, DocsByNode, Options)
     end.
 
 
@@ -291,7 +291,7 @@ with_db(DbName, Options, {M,F,A}) ->
     end.
 
 
-update_docs_read_repairs(DbName, DocsByNode, Options) ->
+update_docs_read_repair(DbName, DocsByNode, Options) ->
     set_io_priority(DbName, Options),
     case get_or_create_db(DbName, Options) of
     {ok, Db} ->
@@ -319,8 +319,8 @@ update_docs_read_repairs(DbName, DocsByNode, Options) ->
 % so that not to recreate Docs that have been purged before
 % on this node() from Nodes that are out of sync.
 filter_purged_revs(Db, DocsByNode) ->
-    AllowedPSeqLag = list_to_integer(config:get("couchdb",
-        "allowed_purge_seq_lag", "100")),
+    AllowedPSeqLag = config:get_integer("couchdb",
+        "allowed_purge_seq_lag", 100),
     DbPSeq = couch_db:get_purge_seq(Db),
     PurgeFoldFun = fun({_P,_U, Id, Revs}, Acc) ->  [{Id, Revs}|Acc]  end,
     Opts = [{start_key, list_to_binary(?LOCAL_DOC_PREFIX ++ "purge-mem3-")},
